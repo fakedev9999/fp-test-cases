@@ -193,16 +193,20 @@ generate-op-succinct-fixture:
 
     L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/2151908/run-latest.json '.receipts[0].blockNumber' -r)))
 
-    # Wait for L2 safe head to reach block + 40 (extra buffer for op-succinct derivation)
+    # Wait for L2 block to be safe (no +40 buffer needed with explicit L1 head)
     while true; do
         SYNC_STATUS=$(cast rpc optimism_syncStatus --rpc-url $ROLLUP_URL)
         L2_SAFE_BLOCK_NUM=$(echo $SYNC_STATUS | jq '.safe_l2.number')
-        if [ $L2_SAFE_BLOCK_NUM -ge $(($L2_BLOCK_NUM + 40)) ]; then
+        L1_HEAD_NUM=$(echo $SYNC_STATUS | jq '.head_l1.number')
+        if [ $L2_SAFE_BLOCK_NUM -ge $L2_BLOCK_NUM ]; then
             break
         fi
-        echo "Waiting for L2 safe head >= $(($L2_BLOCK_NUM + 40))..., currently at $L2_SAFE_BLOCK_NUM"
-        sleep 10
+        echo "Waiting for L2 block $L2_BLOCK_NUM to be safe..., currently at $L2_SAFE_BLOCK_NUM"
+        sleep 2
     done
+
+    # Get the current L1 head hash to pass directly, bypassing calculate_safe_l1_head()
+    L1_HEAD_HASH=$(cast block --rpc-url $L1_RPC_URL $L1_HEAD_NUM --json | jq -r '.hash')
 
     mkdir -p {{ parent_directory(fixture-file) }}
 
@@ -214,6 +218,7 @@ generate-op-succinct-fixture:
     {{ opfp }} from-op-succinct \
         --l2-start-block $(($L2_BLOCK_NUM - 1)) \
         --l2-end-block $L2_BLOCK_NUM \
+        --l1-head $L1_HEAD_HASH \
         --output {{ fixture-file }} \
         {{ verbosity }}
 
