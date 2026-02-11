@@ -20,3 +20,4 @@ docs/
 # Output files
 *.out
 *.json
+!configs/L1/*.json
