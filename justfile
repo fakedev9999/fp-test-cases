@@ -173,25 +173,40 @@ generate-op-succinct-fixture:
     #!/bin/bash
     set -e
 
-    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-2151908-node0-op-geth | grep -- ' rpc: ' | sed 's/.*-> //'") }}
-    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-2151908-node0-op-node | grep -- ' rpc: ' | sed 's/.*-> //'") }}
-    L1_RPC_URL={{ "http://" + shell("kurtosis service inspect " + enclave + " el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //'") }}
-    L1_BEACON_URL={{ shell("kurtosis service inspect " + enclave + " cl-1-teku-geth | grep -- ' http: ' | sed 's/.*-> //'") }}
+    # Discover RPCs: use .env vars (sysgo) if present, otherwise kurtosis
+    if [ -n "${L1_RPC:-}" ]; then
+        L2_RPC_URL=$L2_RPC
+        ROLLUP_URL=$L2_NODE_RPC
+        L1_RPC_URL=$L1_RPC
+        L1_BEACON_URL=$L1_BEACON_RPC
+    else
+        L2_RPC_URL=$(kurtosis service inspect {{ enclave }} op-el-2151908-node0-op-geth | grep -- ' rpc: ' | sed 's/.*-> //')
+        ROLLUP_URL=$(kurtosis service inspect {{ enclave }} op-cl-2151908-node0-op-node | grep -- ' rpc: ' | sed 's/.*-> //')
+        L1_RPC_URL=http://$(kurtosis service inspect {{ enclave }} el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //')
+        L1_BEACON_URL=$(kurtosis service inspect {{ enclave }} cl-1-teku-geth | grep -- ' http: ' | sed 's/.*-> //')
+    fi
+
+    if [ -n "${PRIVATE_KEY:-}" ]; then
+        FORGE_AUTH="--private-key $PRIVATE_KEY"
+    else
+        FORGE_AUTH="--non-interactive --password= --account {{ account }}"
+    fi
 
     forge script \
-        --non-interactive \
-        --password="" \
         --rpc-url $L2_RPC_URL \
-        --account {{ account }} \
+        $FORGE_AUTH \
         --broadcast \
         --sig "{{ script-signature }}" \
         script/{{ script-file }} \
         {{ script-args }}
 
-    rm -rf op-deployer-configs
-    kurtosis files download {{ enclave }} op-deployer-configs
+    if [ -z "${L1_RPC:-}" ]; then
+        rm -rf op-deployer-configs
+        kurtosis files download {{ enclave }} op-deployer-configs
+    fi
 
-    L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/2151908/run-latest.json '.receipts[0].blockNumber' -r)))
+    L2_CHAIN_ID=$(cast chain-id --rpc-url $L2_RPC_URL)
+    L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/$L2_CHAIN_ID/run-latest.json '.receipts[0].blockNumber' -r)))
 
     # Wait for L2 block to be safe (no +40 buffer needed with explicit L1 head)
     while true; do
