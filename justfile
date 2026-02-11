@@ -21,6 +21,7 @@ expanded-name := replace_regex(trim(name + " " + script-args), " ", "-")
 fixture-file := join("fixtures", expanded-name + ".json")
 op-program-output := join("output", "op-program", file_name(fixture-file))
 cannon-output := join("output", "cannon", file_name(fixture-file))
+op-succinct-output := join("output", "op-succinct", file_name(fixture-file))
 verbosity := "-vv"
 genesis-path := "op-deployer-configs/genesis-2151908.json"
 rollup-path := "op-deployer-configs/rollup-2151908.json"
@@ -166,3 +167,61 @@ get-l2-block-gas-limit:
     L1_RPC_URL=$(kurtosis service inspect {{ enclave }} el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //')
 
     cast call --rpc-url $L1_RPC_URL $L1_SYSTEM_CONFIG_ADDRESS  "gasLimit()(uint64)"
+
+# Generates an OP Succinct fixture for the given script (name) and arguments (script-args)
+generate-op-succinct-fixture:
+    #!/bin/bash
+    set -e
+
+    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-1-op-geth-op-node-op-kurtosis | grep -- ' rpc: ' | sed 's/.*-> //'") }}
+    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-1-op-node-op-geth-op-kurtosis | grep -- ' http: ' | sed 's/.*-> //'") }}
+    L1_RPC_URL={{ "http://" + shell("kurtosis service inspect " + enclave + " el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //'") }}
+    L1_BEACON_URL={{ shell("kurtosis service inspect " + enclave + " cl-1-teku-geth | grep -- ' http: ' | sed 's/.*-> //'") }}
+
+    forge script \
+        --non-interactive \
+        --password="" \
+        --rpc-url $L2_RPC_URL \
+        --account {{ account }} \
+        --broadcast \
+        --sig "{{ script-signature }}" \
+        script/{{ script-file }} \
+        {{ script-args }}
+
+    rm -rf op-deployer-configs
+    kurtosis files download {{ enclave }} op-deployer-configs
+
+    L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/2151908/run-latest.json '.receipts[0].blockNumber' -r)))
+
+    # Wait for L2 safe head to reach block + 40 (extra buffer for op-succinct derivation)
+    while true; do
+        SYNC_STATUS=$(cast rpc optimism_syncStatus --rpc-url $ROLLUP_URL)
+        L2_SAFE_BLOCK_NUM=$(echo $SYNC_STATUS | jq '.safe_l2.number')
+        if [ $L2_SAFE_BLOCK_NUM -ge $(($L2_BLOCK_NUM + 40)) ]; then
+            break
+        fi
+        echo "Waiting for L2 safe head >= $(($L2_BLOCK_NUM + 40))..., currently at $L2_SAFE_BLOCK_NUM"
+        sleep 10
+    done
+
+    mkdir -p {{ parent_directory(fixture-file) }}
+
+    export L1_RPC=$L1_RPC_URL
+    export L1_BEACON_RPC=$L1_BEACON_URL
+    export L2_RPC=$L2_RPC_URL
+    export L2_NODE_RPC=$ROLLUP_URL
+
+    {{ opfp }} from-op-succinct \
+        --l2-start-block $(($L2_BLOCK_NUM - 1)) \
+        --l2-end-block $L2_BLOCK_NUM \
+        --output {{ fixture-file }} \
+        {{ verbosity }}
+
+# Runs the given OP Succinct fixture through the SP1 CPU prover
+run-op-succinct-fixture:
+    mkdir -p {{ parent_directory(op-succinct-output) }}
+
+    {{ opfp }} run-op-succinct \
+        --fixture {{ fixture-file }} \
+        --output {{ op-succinct-output }} \
+        {{ verbosity }}
