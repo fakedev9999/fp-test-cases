@@ -137,7 +137,7 @@ pub struct RollupConfig {
     /// The interop activation time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub interop_time: Option<u64>,
-    /// The holocene_time activation time.
+    /// The holocene activation time.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub holocene_time: Option<u64>,
     /// The batch inbox address.
@@ -199,25 +199,25 @@ impl From<&kona_genesis::RollupConfig> for RollupConfig {
     }
 }
 
-impl Into<kona_genesis::RollupConfig> for RollupConfig {
-    fn into(self) -> kona_genesis::RollupConfig {
-        let l2_chain_id_raw = u64::try_from(self.l2_chain_id.unwrap_or(0)).unwrap();
-        kona_genesis::RollupConfig {
+impl From<RollupConfig> for kona_genesis::RollupConfig {
+    fn from(cfg: RollupConfig) -> Self {
+        let l2_chain_id_raw = u64::try_from(cfg.l2_chain_id.unwrap_or(0)).unwrap();
+        Self {
             genesis: kona_genesis::ChainGenesis {
                 l1: BlockNumHash {
-                    number: self.genesis.l1.number,
-                    hash: self.genesis.l1.hash,
+                    number: cfg.genesis.l1.number,
+                    hash: cfg.genesis.l1.hash,
                 },
                 l2: BlockNumHash {
-                    number: self.genesis.l2.number,
-                    hash: self.genesis.l2.hash,
+                    number: cfg.genesis.l2.number,
+                    hash: cfg.genesis.l2.hash,
                 },
-                l2_time: self.genesis.l2_time,
+                l2_time: cfg.genesis.l2_time,
                 system_config: Some(kona_genesis::SystemConfig {
-                    batcher_address: self.genesis.system_config.batcher_addr,
-                    overhead: self.genesis.system_config.overhead.into(),
-                    scalar: self.genesis.system_config.scalar.into(),
-                    gas_limit: self.genesis.system_config.gas_limit,
+                    batcher_address: cfg.genesis.system_config.batcher_addr,
+                    overhead: cfg.genesis.system_config.overhead.into(),
+                    scalar: cfg.genesis.system_config.scalar.into(),
+                    gas_limit: cfg.genesis.system_config.gas_limit,
                     base_fee_scalar: None,
                     blob_base_fee_scalar: None,
                     eip1559_denominator: None,
@@ -228,33 +228,33 @@ impl Into<kona_genesis::RollupConfig> for RollupConfig {
                     da_footprint_gas_scalar: None,
                 }),
             },
-            block_time: self.block_time,
-            max_sequencer_drift: self.max_sequencer_drift,
-            seq_window_size: self.seq_window_size,
-            channel_timeout: self.channel_timeout_bedrock,
+            block_time: cfg.block_time,
+            max_sequencer_drift: cfg.max_sequencer_drift,
+            seq_window_size: cfg.seq_window_size,
+            channel_timeout: cfg.channel_timeout_bedrock,
             granite_channel_timeout: 50,
-            l1_chain_id: u64::try_from(self.l1_chain_id.unwrap_or(0)).unwrap(),
+            l1_chain_id: u64::try_from(cfg.l1_chain_id.unwrap_or(0)).unwrap(),
             l2_chain_id: l2_chain_id_raw.into(),
             hardforks: kona_genesis::HardForkConfig {
-                regolith_time: self.regolith_time,
-                canyon_time: self.canyon_time,
-                delta_time: self.delta_time,
-                ecotone_time: self.ecotone_time,
-                fjord_time: self.fjord_time,
-                granite_time: self.granite_time,
-                holocene_time: self.holocene_time,
-                interop_time: self.interop_time,
+                regolith_time: cfg.regolith_time,
+                canyon_time: cfg.canyon_time,
+                delta_time: cfg.delta_time,
+                ecotone_time: cfg.ecotone_time,
+                fjord_time: cfg.fjord_time,
+                granite_time: cfg.granite_time,
+                holocene_time: cfg.holocene_time,
+                interop_time: cfg.interop_time,
                 pectra_blob_schedule_time: None,
                 isthmus_time: None,
                 jovian_time: None,
             },
-            batch_inbox_address: self.batch_inbox_address,
-            deposit_contract_address: self.deposit_contract_address,
-            l1_system_config_address: self.l1_system_config_address,
-            protocol_versions_address: self.protocol_versions_address.unwrap_or_default(),
+            batch_inbox_address: cfg.batch_inbox_address,
+            deposit_contract_address: cfg.deposit_contract_address,
+            l1_system_config_address: cfg.l1_system_config_address,
+            protocol_versions_address: cfg.protocol_versions_address.unwrap_or_default(),
             superchain_config_address: None,
             blobs_enabled_l1_timestamp: None,
-            da_challenge_address: self.da_challenge_address,
+            da_challenge_address: cfg.da_challenge_address,
             interop_message_expiry_window: 0,
             alt_da_config: None,
             chain_op_config: kona_genesis::BaseFeeConfig::optimism(),
@@ -276,11 +276,11 @@ pub struct BlockID {
     pub number: u64,
 }
 
-impl Into<BlockNumHash> for BlockID {
-    fn into(self) -> BlockNumHash {
-        BlockNumHash {
-            hash: self.hash,
-            number: self.number,
+impl From<BlockID> for BlockNumHash {
+    fn from(id: BlockID) -> Self {
+        Self {
+            hash: id.hash,
+            number: id.number,
         }
     }
 }
@@ -351,10 +351,10 @@ impl TryFrom<Vec<u8>> for VersionedState {
         let mut v = VersionedState::default();
         let mut cursor = Cursor::new(buffer);
         let result = v.decode(&mut cursor);
-        return match result {
+        match result {
             Ok(_) => Ok(v),
-            Err(err) => Err(format!("invalid versioned state encoding: {err}").to_string()),
-        };
+            Err(err) => Err(format!("invalid versioned state encoding: {err}")),
+        }
     }
 }
 
@@ -432,7 +432,7 @@ impl Decodable for Memory {
 #[cfg(test)]
 mod tests {
     use crate::cmd::util::{CpuScalars, Memory, SingleThreadedFPVMState, VersionedState};
-    use alloy_primitives::{hex, Uint, B256};
+    use alloy_primitives::{hex, B256};
     use std::collections::HashMap;
     use std::fs;
 
@@ -474,7 +474,7 @@ mod tests {
             exit_code: 1,
             exited: true,
             step: 0xdeadbeef,
-            registers: registers,
+            registers,
             last_hint: vec![1u8, 2u8, 3u8, 4u8, 5u8],
         };
 
