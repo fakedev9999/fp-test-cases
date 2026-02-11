@@ -1,8 +1,8 @@
 set dotenv-load := true
 
 opfp := if `which opfp || true` != "" { `which opfp` } else { "target/debug/opfp" }
-op-program := if `which op-program || true` != "" { `which op-program` } else { join(env("OPTIMISM_DIR"), "op-program/bin/op-program") }
-cannon-dir := if `which cannon || true` != "" { parent_directory(parent_directory(`which cannon`)) } else { join(env("OPTIMISM_DIR"), "cannon") }
+op-program := if `which op-program || true` != "" { `which op-program` } else { join(env_var_or_default("OPTIMISM_DIR", "/tmp"), "op-program/bin/op-program") }
+cannon-dir := if `which cannon || true` != "" { parent_directory(parent_directory(`which cannon`)) } else { join(env_var_or_default("OPTIMISM_DIR", "/tmp"), "cannon") }
 cannon-bin := join(cannon-dir, "bin/cannon")
 cannon-state := join(cannon-dir, "state.bin.gz")
 cannon-meta := join(cannon-dir, "meta.json")
