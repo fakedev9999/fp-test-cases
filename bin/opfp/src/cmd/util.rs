@@ -434,7 +434,6 @@ mod tests {
     use crate::cmd::util::{CpuScalars, Memory, SingleThreadedFPVMState, VersionedState};
     use alloy_primitives::{hex, B256};
     use std::collections::HashMap;
-    use std::fs;
 
     #[test]
     fn test_decode_versioned_state() {

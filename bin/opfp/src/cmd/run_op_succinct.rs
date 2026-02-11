@@ -11,7 +11,7 @@ use op_succinct_client_utils::precompiles::cycle_tracker::keys;
 use op_succinct_proof_utils::get_range_elf_embedded;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::blocking::{CpuProver, Prover};
-use sp1_sdk::{Elf, ExecutionReport, SP1Stdin, SP1PublicValues};
+use sp1_sdk::{Elf, ExecutionReport, SP1PublicValues, SP1Stdin};
 use std::path::PathBuf;
 use tracing::{info, trace};
 
@@ -22,44 +22,32 @@ const TARGET: &str = "run-op-succinct";
 #[derive(Parser, Clone, Debug)]
 pub struct RunOpSuccinct {
     /// Path to the SP1Stdin fixture file (JSON, produced by from-op-succinct).
-    #[clap(short, long, help = "Path to the SP1Stdin fixture file (JSON)")]
+    #[clap(short, long)]
     pub fixture: PathBuf,
     /// Output file path for the execution stats (JSON).
-    #[clap(long, help = "Output file for execution stats (JSON)")]
+    #[clap(long)]
     pub output: PathBuf,
     /// Verbosity level (0-4)
-    #[arg(long, short, help = "Verbosity level (0-4)", action = ArgAction::Count)]
+    #[arg(long, short, action = ArgAction::Count)]
     pub v: u8,
 }
 
 /// Execution statistics from running an SP1 program through the CPU prover.
+#[allow(missing_docs)]
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OpSuccinctStats {
-    /// Total wall-clock runtime in milliseconds.
     pub runtime_ms: u128,
-    /// Total instruction count across all segments.
     pub total_instruction_count: u64,
-    /// Cycles spent in oracle verification.
     pub oracle_verify_instruction_count: u64,
-    /// Cycles spent in derivation.
     pub derivation_instruction_count: u64,
-    /// Cycles spent in block execution.
     pub block_execution_instruction_count: u64,
-    /// Cycles spent in blob verification.
     pub blob_verification_instruction_count: u64,
-    /// Total SP1 gas consumed.
     pub total_sp1_gas: u64,
-    /// Cycles spent in bn256 pairing precompile.
     pub bn_pair_cycles: u64,
-    /// Cycles spent in bn256 addition precompile.
     pub bn_add_cycles: u64,
-    /// Cycles spent in bn256 scalar multiplication precompile.
     pub bn_mul_cycles: u64,
-    /// Cycles spent in KZG point evaluation precompile.
     pub kzg_eval_cycles: u64,
-    /// Cycles spent in secp256k1 ECDSA recovery precompile.
     pub ec_recover_cycles: u64,
-    /// Cycles spent in P-256 signature verification precompile.
     pub p256_verify_cycles: u64,
 }
 
@@ -96,16 +84,13 @@ impl RunOpSuccinct {
     pub async fn run(&self) -> Result<()> {
         trace!(target: TARGET, "Running OP Succinct fixture: {:?}", self.fixture);
 
-        // 1. Read and deserialize the SP1Stdin fixture.
-        info!(target: TARGET, "Reading SP1Stdin fixture from {:?}...", self.fixture);
         let fixture_json = std::fs::read_to_string(&self.fixture)
             .map_err(|e| eyre!("Failed to read fixture file: {}", e))?;
         let sp1_stdin: SP1Stdin = serde_json::from_str(&fixture_json)
             .map_err(|e| eyre!("Failed to deserialize SP1Stdin: {}", e))?;
 
-        // 2. Execute through the SP1 CPU prover.
-        //    CRITICAL: CpuProver::new() creates its own tokio runtime internally,
-        //    so we must run it in spawn_blocking to avoid nested runtime panic.
+        // CpuProver::new() creates its own tokio runtime internally,
+        // so we must run it in spawn_blocking to avoid nested runtime panic.
         info!(target: TARGET, "Executing through SP1 CPU prover...");
         let start = std::time::Instant::now();
 
@@ -123,8 +108,6 @@ impl RunOpSuccinct {
         let (_, report) = result.map_err(|e| eyre!("SP1 execution failed: {}", e))?;
 
         let runtime_ms = start.elapsed().as_millis();
-
-        // 3. Extract stats from the execution report.
         let stats = OpSuccinctStats::from_report(&report, runtime_ms);
 
         info!(target: TARGET, "Execution completed in {}ms", runtime_ms);
@@ -145,7 +128,6 @@ impl RunOpSuccinct {
         info!(target: TARGET, "P256 verify cycles: {}",
             stats.p256_verify_cycles.to_formatted_string(&Locale::en));
 
-        // 4. Write stats to output file.
         if let Some(parent) = self.output.parent() {
             std::fs::create_dir_all(parent)?;
         }

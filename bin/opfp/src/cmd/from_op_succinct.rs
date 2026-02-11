@@ -10,7 +10,6 @@ use op_succinct_ethereum_host_utils::host::SingleChainOPSuccinctHost;
 use op_succinct_host_utils::fetcher::OPSuccinctDataFetcher;
 use op_succinct_host_utils::host::OPSuccinctHost;
 use op_succinct_host_utils::witness_generation::WitnessGenerator;
-use sp1_sdk::SP1Stdin;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tracing::{info, trace};
@@ -28,16 +27,16 @@ const TARGET: &str = "from-op-succinct";
 #[derive(Parser, Clone, Debug)]
 pub struct FromOpSuccinct {
     /// The L2 start block (inclusive). Typically `end_block - 1`.
-    #[clap(long, help = "L2 start block number (inclusive)")]
+    #[clap(long)]
     pub l2_start_block: u64,
     /// The L2 end block (inclusive) — the block whose execution we benchmark.
-    #[clap(long, help = "L2 end block number (inclusive)")]
+    #[clap(long)]
     pub l2_end_block: u64,
-    /// The output file path for the serialized SP1Stdin fixture.
-    #[clap(long, help = "Output file for the SP1Stdin fixture (JSON)")]
+    /// The output file path for the serialized SP1Stdin fixture (JSON).
+    #[clap(long)]
     pub output: PathBuf,
     /// Verbosity level (0-4)
-    #[arg(long, short, help = "Verbosity level (0-4)", action = ArgAction::Count)]
+    #[arg(long, short, action = ArgAction::Count)]
     pub v: u8,
 }
 
@@ -54,16 +53,13 @@ impl FromOpSuccinct {
         trace!(target: TARGET, "Generating OP Succinct fixture for L2 blocks {} -> {}",
             self.l2_start_block, self.l2_end_block);
 
-        // 1. Initialize the data fetcher from env vars (L1_RPC, L1_BEACON_RPC, L2_RPC, L2_NODE_RPC).
         info!(target: TARGET, "Initializing OPSuccinctDataFetcher from environment...");
         let fetcher = OPSuccinctDataFetcher::new_with_rollup_config()
             .await
             .map_err(|e| eyre!("Failed to create OPSuccinctDataFetcher: {}", e))?;
 
-        // 2. Create the SingleChainOPSuccinctHost (ETH-DA).
         let host = SingleChainOPSuccinctHost::new(Arc::new(fetcher));
 
-        // 3. Fetch host arguments for the block range.
         info!(target: TARGET, "Fetching host args for blocks {} -> {}...",
             self.l2_start_block, self.l2_end_block);
         let host_args = host
@@ -71,21 +67,18 @@ impl FromOpSuccinct {
             .await
             .map_err(|e| eyre!("Failed to fetch host args: {}", e))?;
 
-        // 4. Run the host to generate witness data.
         info!(target: TARGET, "Running host to generate witness...");
         let witness = host
             .run(&host_args)
             .await
             .map_err(|e| eyre!("Failed to run host: {}", e))?;
 
-        // 5. Convert the witness into SP1Stdin.
         info!(target: TARGET, "Converting witness to SP1Stdin...");
-        let sp1_stdin: SP1Stdin = host
+        let sp1_stdin = host
             .witness_generator()
             .get_sp1_stdin(witness)
             .map_err(|e| eyre!("Failed to create SP1Stdin: {}", e))?;
 
-        // 6. Serialize SP1Stdin to JSON and write to output file.
         if let Some(parent) = self.output.parent() {
             std::fs::create_dir_all(parent)?;
         }
