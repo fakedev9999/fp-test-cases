@@ -1,4 +1,8 @@
 optimism_package:
+  op_contract_deployer_params:
+    image: op-deployer:local
+    l1_artifacts_locator: "embedded"
+    l2_artifacts_locator: "embedded"
   chains:
     opkurtosis:
       participants:
@@ -8,6 +12,7 @@ optimism_package:
             type: op-geth
           cl:
             type: op-node
+            image: op-node:local
       network_params:
         network: "kurtosis"
         network_id: "2151908"
