@@ -66,8 +66,8 @@ generate-fixture:
     #!/bin/bash
     set -e
 
-    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-1-op-geth-op-node-op-kurtosis | grep -- ' rpc: ' | sed 's/.*-> //'") }}
-    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-1-op-node-op-geth-op-kurtosis | grep -- ' http: ' | sed 's/.*-> //'") }}
+    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-2151908-node0-op-geth | grep -- ' rpc: ' | sed 's/.*-> //'") }}
+    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-2151908-node0-op-node | grep -- ' rpc: ' | sed 's/.*-> //'") }}
 
     forge script \
         --non-interactive \
@@ -173,8 +173,8 @@ generate-op-succinct-fixture:
     #!/bin/bash
     set -e
 
-    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-1-op-geth-op-node-op-kurtosis | grep -- ' rpc: ' | sed 's/.*-> //'") }}
-    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-1-op-node-op-geth-op-kurtosis | grep -- ' http: ' | sed 's/.*-> //'") }}
+    L2_RPC_URL={{ shell("kurtosis service inspect " + enclave + " op-el-2151908-node0-op-geth | grep -- ' rpc: ' | sed 's/.*-> //'") }}
+    ROLLUP_URL={{ shell("kurtosis service inspect " + enclave + " op-cl-2151908-node0-op-node | grep -- ' rpc: ' | sed 's/.*-> //'") }}
     L1_RPC_URL={{ "http://" + shell("kurtosis service inspect " + enclave + " el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //'") }}
     L1_BEACON_URL={{ shell("kurtosis service inspect " + enclave + " cl-1-teku-geth | grep -- ' http: ' | sed 's/.*-> //'") }}
 
