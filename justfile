@@ -163,7 +163,7 @@ get-l2-block-gas-limit:
     rm -rf op-deployer-configs
     kurtosis files download {{ enclave }} op-deployer-configs
 
-    L1_SYSTEM_CONFIG_ADDRESS={{ shell("cat " + rollup-path + " | jq '.l1_system_config_address'") }}
+    L1_SYSTEM_CONFIG_ADDRESS=$(jq -r '.l1_system_config_address' op-deployer-configs/rollup-2151908.json)
     L1_RPC_URL=$(kurtosis service inspect {{ enclave }} el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //')
 
     cast call --rpc-url $L1_RPC_URL $L1_SYSTEM_CONFIG_ADDRESS  "gasLimit()(uint64)"
