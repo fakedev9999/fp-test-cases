@@ -153,8 +153,6 @@ update-l2-block-gas-limit:
         "setGasLimit(uint64)" \
         {{ l2-block-gas-limit }}
 
-    L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/2151908/run-latest.json '.receipts[0].blockNumber' -r)))
-
 # Queries the L1 SystemConfig contract to return the current L2 block gas limit
 get-l2-block-gas-limit:
     #!/bin/bash
@@ -178,6 +176,7 @@ generate-op-succinct-fixture:
     L1_RPC_URL={{ "http://" + shell("kurtosis service inspect " + enclave + " el-1-geth-teku | grep -- ' rpc: ' | sed 's/.*-> //'") }}
     L1_BEACON_URL={{ shell("kurtosis service inspect " + enclave + " cl-1-teku-geth | grep -- ' http: ' | sed 's/.*-> //'") }}
 
+    echo "=== Phase 1: Running forge script (simulation + broadcast) ==="
     forge script \
         --non-interactive \
         --password="" \
@@ -187,11 +186,13 @@ generate-op-succinct-fixture:
         --sig "{{ script-signature }}" \
         script/{{ script-file }} \
         {{ script-args }}
+    echo "=== Phase 1 complete: Forge script finished ==="
 
     rm -rf op-deployer-configs
     kurtosis files download {{ enclave }} op-deployer-configs
 
     L2_BLOCK_NUM=$(($(jq < broadcast/{{ script-file }}/2151908/run-latest.json '.receipts[0].blockNumber' -r)))
+    echo "=== Phase 2: Waiting for L2 block $L2_BLOCK_NUM to be safe ==="
 
     # Wait for L2 block to be safe (no +40 buffer needed with explicit L1 head)
     while true; do
@@ -204,9 +205,11 @@ generate-op-succinct-fixture:
         echo "Waiting for L2 block $L2_BLOCK_NUM to be safe..., currently at $L2_SAFE_BLOCK_NUM"
         sleep 2
     done
+    echo "=== Phase 2 complete: L2 block $L2_BLOCK_NUM is safe ==="
 
     # Get the current L1 head hash to pass directly, bypassing calculate_safe_l1_head()
     L1_HEAD_HASH=$(cast block --rpc-url $L1_RPC_URL $L1_HEAD_NUM --json | jq -r '.hash')
+    echo "=== Phase 3 complete: L1_HEAD_HASH=$L1_HEAD_HASH (L1_HEAD_NUM=$L1_HEAD_NUM) ==="
 
     mkdir -p {{ parent_directory(fixture-file) }}
 
@@ -215,12 +218,14 @@ generate-op-succinct-fixture:
     export L2_RPC=$L2_RPC_URL
     export L2_NODE_RPC=$ROLLUP_URL
 
+    echo "=== Phase 4: Running opfp from-op-succinct ==="
     {{ opfp }} from-op-succinct \
         --l2-start-block $(($L2_BLOCK_NUM - 1)) \
         --l2-end-block $L2_BLOCK_NUM \
         --l1-head $L1_HEAD_HASH \
         --output {{ fixture-file }} \
         {{ verbosity }}
+    echo "=== Phase 4 complete: Fixture generated at {{ fixture-file }} ==="
 
 # Runs the given OP Succinct fixture through the SP1 CPU prover
 run-op-succinct-fixture:
