@@ -12,6 +12,7 @@ use op_succinct_proof_utils::get_range_elf_embedded;
 use serde::{Deserialize, Serialize};
 use sp1_sdk::blocking::{CpuProver, Prover};
 use sp1_sdk::{Elf, ExecutionReport, SP1PublicValues, SP1Stdin};
+use std::collections::BTreeMap;
 use std::path::PathBuf;
 use tracing::{info, trace};
 
@@ -49,12 +50,28 @@ pub struct OpSuccinctStats {
     pub kzg_eval_cycles: u64,
     pub ec_recover_cycles: u64,
     pub p256_verify_cycles: u64,
+    pub syscall_counts: BTreeMap<String, u64>,
+    pub opcode_counts: BTreeMap<String, u64>,
 }
 
 impl OpSuccinctStats {
     /// Extract stats from an SP1 ExecutionReport.
     pub fn from_report(report: &ExecutionReport, runtime_ms: u128) -> Self {
         let get_cycles = |key: &str| -> u64 { *report.cycle_tracker.get(key).unwrap_or(&0) };
+
+        let syscall_counts: BTreeMap<String, u64> = report
+            .syscall_counts
+            .iter()
+            .filter(|(_, &count)| count > 0)
+            .map(|(code, &count)| (format!("{code}"), count))
+            .collect();
+
+        let opcode_counts: BTreeMap<String, u64> = report
+            .opcode_counts
+            .iter()
+            .filter(|(_, &count)| count > 0)
+            .map(|(op, &count)| (format!("{op}"), count))
+            .collect();
 
         Self {
             runtime_ms,
@@ -70,6 +87,8 @@ impl OpSuccinctStats {
             kzg_eval_cycles: get_cycles(keys::KZG_EVAL),
             ec_recover_cycles: get_cycles(keys::EC_RECOVER),
             p256_verify_cycles: get_cycles(keys::P256_VERIFY),
+            syscall_counts,
+            opcode_counts,
         }
     }
 }
@@ -127,6 +146,8 @@ impl RunOpSuccinct {
             stats.ec_recover_cycles.to_formatted_string(&Locale::en));
         info!(target: TARGET, "P256 verify cycles: {}",
             stats.p256_verify_cycles.to_formatted_string(&Locale::en));
+        info!(target: TARGET, "Total syscalls: {}",
+            report.total_syscall_count().to_formatted_string(&Locale::en));
 
         if let Some(parent) = self.output.parent() {
             std::fs::create_dir_all(parent)?;
