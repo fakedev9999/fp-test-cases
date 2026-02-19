@@ -51,7 +51,7 @@ op-succinct-ethereum-host-utils = { git = "https://github.com/succinctlabs/op-su
 op-succinct-elfs = { git = "https://github.com/succinctlabs/op-succinct", branch = "fakedev9999/prover-mainnet-ready" }
 
 # SP1 v6
-sp1-sdk = { version = "6.0.0-rc.1", features = ["blocking"] }
+sp1-sdk = { version = "6.0.0", features = ["blocking"] }
 
 # Internal
 fp-test-fixtures = { path = "crates/fp-test-fixtures" }
